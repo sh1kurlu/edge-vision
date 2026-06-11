@@ -1,4 +1,4 @@
-# Document Scanner
+# EdgeVision - Document Scanner
 
 A production-quality desktop application that automatically detects, extracts, rectifies, and enhances documents from photographs taken under challenging real-world conditions.
 
