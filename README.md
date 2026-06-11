@@ -224,25 +224,4 @@ The executable appears in `dist/DocumentScanner/`.
 - Test the built app with images from `examples/`
 - If OpenCV fails to load, add `--hidden-import=cv2`
 
----
 
-## Demo Video
-
-Record a 3–5 minute demo covering:
-
-1. Launching the application
-2. Uploading multiple test images from `examples/`
-3. Automatic document detection with corner overlay
-4. Perspective correction results
-5. Switching between Adaptive and Otsu enhancement
-6. Saving outputs as PNG and PDF
-
-Recommended tools: OBS Studio, QuickTime (macOS), or Windows Game Bar.
-
-Save the video as `assets/demo.mp4` or include a link in your submission.
-
----
-
-## License
-
-MIT License — free for educational and commercial use.
