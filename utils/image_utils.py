@@ -35,6 +35,25 @@ def validate_image(image: np.ndarray) -> None:
         )
 
 
+def resize_for_preview(image: np.ndarray, max_dimension: int) -> tuple[np.ndarray, float]:
+    height, width = image.shape[:2]
+    longest = max(height, width)
+    if longest <= max_dimension:
+        return image.copy(), 1.0
+
+    scale = max_dimension / longest
+    new_w = int(width * scale)
+    new_h = int(height * scale)
+    resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    return resized, scale
+
+
+def scale_corners_to_full(corners: np.ndarray, scale: float) -> np.ndarray:
+    if scale >= 1.0 or scale <= 0:
+        return corners.copy()
+    return (corners / scale).astype(np.float32)
+
+
 def load_image(path: str | Path) -> np.ndarray:
     path = Path(path)
 
@@ -97,3 +116,9 @@ def numpy_to_qimage_rgb(image: np.ndarray):
         return qimage.copy()
 
     raise ValueError(f"Unsupported image shape for display: {image.shape}")
+
+
+def gray_to_bgr(gray: np.ndarray) -> np.ndarray:
+    if len(gray.shape) == 2:
+        return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    return gray

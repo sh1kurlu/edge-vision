@@ -4,84 +4,84 @@
       "image": "01_straight.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0249,
+      "processing_time_seconds": 0.0301,
       "message": "Document scanned successfully."
     },
     {
       "image": "02_angle_25.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0037,
+      "processing_time_seconds": 0.0076,
       "message": "Document scanned successfully."
     },
     {
       "image": "03_angle_neg20.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0034,
+      "processing_time_seconds": 0.0044,
       "message": "Document scanned successfully."
     },
     {
       "image": "04_shadow.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0035,
+      "processing_time_seconds": 0.0053,
       "message": "Document scanned successfully."
     },
     {
       "image": "05_low_contrast.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0037,
+      "processing_time_seconds": 0.0045,
       "message": "Document scanned successfully."
     },
     {
       "image": "06_noise.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0036,
+      "processing_time_seconds": 0.0046,
       "message": "Document scanned successfully."
     },
     {
       "image": "07_blur.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0034,
+      "processing_time_seconds": 0.0044,
       "message": "Document scanned successfully."
     },
     {
       "image": "08_shadow_noise.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0036,
+      "processing_time_seconds": 0.0047,
       "message": "Document scanned successfully."
     },
     {
       "image": "09_complex_bg.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0026,
+      "processing_time_seconds": 0.0063,
       "message": "Document scanned successfully."
     },
     {
       "image": "10_steep_angle.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0033,
+      "processing_time_seconds": 0.0047,
       "message": "Document scanned successfully."
     },
     {
       "image": "11_mild_blur_shadow.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0031,
+      "processing_time_seconds": 0.005,
       "message": "Document scanned successfully."
     },
     {
       "image": "12_heavy_noise.jpg",
       "detection_success": true,
       "perspective_success": true,
-      "processing_time_seconds": 0.0032,
+      "processing_time_seconds": 0.0049,
       "message": "Document scanned successfully."
     }
   ],
@@ -91,7 +91,7 @@
     "detection_success_rate": 100.0,
     "perspective_success_count": 12,
     "perspective_success_rate": 100.0,
-    "average_processing_time_seconds": 0.0052,
-    "total_processing_time_seconds": 0.0619
+    "average_processing_time_seconds": 0.0072,
+    "total_processing_time_seconds": 0.0865
   }
 }

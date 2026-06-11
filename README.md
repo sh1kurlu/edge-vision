@@ -10,13 +10,31 @@ Built entirely in Python using classical computer vision (OpenCV) and PySide6.
 
 ## Features
 
-- **Desktop GUI** — Upload, preview, scan, and save with intuitive controls
-- **Robust detection** — Handles perspective distortion, rotation, shadows, noise, blur, and complex backgrounds
-- **Classical CV pipeline** — Canny edges → morphological closing → contour detection → Douglas–Peucker quadrilateral selection
-- **Perspective correction** — Flat, top-down document view via homography
-- **Enhancement modes** — Adaptive thresholding (scanner-like) or Otsu thresholding
+### Core Scanning (unchanged)
+- **Robust detection** — Canny → morphological closing → contours → Douglas–Peucker quadrilateral selection
+- **Perspective correction** — Homography-based flat, top-down output
+- **Enhancement modes** — Adaptive thresholding, Otsu thresholding, or no enhancement
 - **Export formats** — PNG, JPG, and single-page PDF
-- **Configurable parameters** — Canny thresholds, morphological kernel, enhancement mode
+
+### Professional UI/UX (new)
+- **Real-time processing** — Results update automatically when sliders or settings change (400 ms debounce)
+- **Interactive sliders** — Live Canny and morphological kernel controls with value display
+- **Before/after comparison** — Drag a vertical divider to compare original vs scanned output
+- **Zoom & pan** — Mouse wheel zoom, click-drag pan, fit-to-window, reset view
+- **Detection overlay** — Toggle contour, corners, and boundary visualization on the original image
+- **Pipeline inspector** — Tabs for Original, Grayscale, Edges, Morphology, Detected Contour, Final Scan
+- **Manual corner editing** — Drag corner handles for live perspective correction
+- **Dark modern theme** — Professional styling with responsive `QSplitter` layout
+
+### Performance & Intelligence (new)
+- **Background worker threads** — GUI stays responsive during processing
+- **Smart preview mode** — Fast preview processing; full resolution on export
+- **Processing cache** — Grayscale/blur cached until image or preprocessing options change
+- **Multi-strategy detection** — Fallback to adaptive threshold and largest-rectangle search
+- **Detection confidence** — Score based on rectangularity, area, corners, and edge strength
+- **cornerSubPix refinement** — Optional sub-pixel corner accuracy before warping
+- **Optional preprocessing** — CLAHE, bilateral filtering, shadow reduction
+- **Live metrics** — Processing time, confidence, input/output resolution
 
 ---
 
@@ -79,11 +97,13 @@ python scripts/benchmark.py
 
 1. **Launch** the application with `python main.py`.
 2. Click **Upload Image** and select a JPG, JPEG, PNG, or BMP file.
-3. Adjust **Canny thresholds** or **morph kernel** if detection fails on difficult images.
-4. Select an **Enhancement** mode (Adaptive recommended for uneven lighting).
-5. Click **Scan Document** to run the pipeline.
-6. Review the original (left) and scanned result (right).
-7. Click **Save Result** to export as PNG, JPG, or PDF.
+3. The scan runs automatically — adjust **sliders** and watch results update in real time.
+4. Use the **Compare** tab to drag the divider between before/after views.
+5. Open the **Pipeline** tab to inspect each processing stage.
+6. Enable **Show Detection Overlay** to visualize corners and boundaries.
+7. Enable **Manual Corner Editing** on the Zoom/Pan tab to fine-tune corners.
+8. Check **Export Original Resolution** before saving for full-quality output.
+9. Click **Save Result** to export as PNG, JPG, or PDF.
 
 ### Tips for Best Results
 
@@ -140,11 +160,17 @@ document_scanner/
 ├── main.py
 ├── gui/
 │   ├── main_window.py
-│   └── widgets.py
+│   ├── widgets.py
+│   ├── comparison_widget.py
+│   ├── labeled_slider.py
+│   ├── pipeline_viewer.py
+│   ├── theme.py
+│   └── zoom_pan_viewer.py
 ├── scanner/
 │   ├── preprocessing.py
 │   ├── edge_detection.py
 │   ├── contour_detection.py
+│   ├── corner_refinement.py
 │   ├── perspective.py
 │   ├── enhancement.py
 │   └── pipeline.py
