@@ -1,0 +1,97 @@
+{
+  "images": [
+    {
+      "image": "01_straight.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0249,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "02_angle_25.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0037,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "03_angle_neg20.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0034,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "04_shadow.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0035,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "05_low_contrast.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0037,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "06_noise.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0036,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "07_blur.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0034,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "08_shadow_noise.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0036,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "09_complex_bg.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0026,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "10_steep_angle.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0033,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "11_mild_blur_shadow.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0031,
+      "message": "Document scanned successfully."
+    },
+    {
+      "image": "12_heavy_noise.jpg",
+      "detection_success": true,
+      "perspective_success": true,
+      "processing_time_seconds": 0.0032,
+      "message": "Document scanned successfully."
+    }
+  ],
+  "summary": {
+    "total_images": 12,
+    "detection_success_count": 12,
+    "detection_success_rate": 100.0,
+    "perspective_success_count": 12,
+    "perspective_success_rate": 100.0,
+    "average_processing_time_seconds": 0.0052,
+    "total_processing_time_seconds": 0.0619
+  }
+}
