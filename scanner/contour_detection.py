@@ -62,12 +62,17 @@ def find_document_corners(
     morph_kernel_size: int = 5,
     epsilon_ratio: float = 0.02,
     min_area_ratio: float = 0.05,
+    *,
+    edges_pre_closed: bool = False,
 ) -> DocumentDetectionResult:
     height, width = image_shape[:2]
     image_area = float(height * width)
     min_area = image_area * min_area_ratio
 
-    closed_edges = apply_morphological_closing(edges, kernel_size=morph_kernel_size)
+    if edges_pre_closed:
+        closed_edges = edges
+    else:
+        closed_edges = apply_morphological_closing(edges, kernel_size=morph_kernel_size)
 
     contours, _ = cv2.findContours(
         closed_edges,
@@ -188,7 +193,12 @@ def find_document_corners_multi(
     min_area_ratio: float = 0.05,
 ) -> DocumentDetectionResult:
     primary = find_document_corners(
-        edges, image_shape, morph_kernel_size, epsilon_ratio, min_area_ratio
+        closed_edges,
+        image_shape,
+        morph_kernel_size,
+        epsilon_ratio,
+        min_area_ratio,
+        edges_pre_closed=True,
     )
     if primary.success:
         return primary

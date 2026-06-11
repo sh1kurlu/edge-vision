@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import sys
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 def main() -> int:

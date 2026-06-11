@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
+import cv2
 import numpy as np
-from PySide6.QtCore import QObject, QThread, QTimer, Signal, Slot
+from PySide6.QtCore import QMetaObject, QObject, Qt, QThread, QTimer, Signal, Slot
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -28,6 +31,7 @@ from gui.labeled_slider import LabeledSlider
 from gui.pipeline_viewer import PipelineViewer
 from gui.theme import DARK_THEME
 from gui.widgets import StatusBarLabel
+from scanner.config_log import format_active_config
 from scanner.enhancement import EnhancementMode
 from scanner.pipeline import DocumentScanner, ScanConfig, ScanResult
 from scanner.preprocessing import PreprocessOptions
@@ -37,30 +41,35 @@ from utils.pdf_export import save_as_pdf
 DEBOUNCE_MS = 400
 
 
+def _diag(msg: str) -> None:
+    print(f"[EdgeVision] {msg}", flush=True)
+
+
 class ScanWorker(QObject):
     finished = Signal(int, object)
     stage_changed = Signal(str)
 
-    def __init__(
-        self,
-        scanner: DocumentScanner,
-        image: np.ndarray,
-        config: ScanConfig,
-        generation: int,
-    ) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self._scanner = scanner
+        self._image: np.ndarray | None = None
+        self._config: ScanConfig | None = None
+        self._generation = 0
+
+    def prepare(self, image: np.ndarray, config: ScanConfig, generation: int) -> None:
         self._image = image
-        self._config = config
+        self._config = copy.deepcopy(config)
         self._generation = generation
 
     @Slot()
     def run(self) -> None:
+        cv2.setNumThreads(1)
+
         def on_stage(msg: str) -> None:
             self.stage_changed.emit(msg)
 
-        self._scanner.config = self._config
-        result = self._scanner.scan(
+        assert self._image is not None and self._config is not None
+        scanner = DocumentScanner(self._config)
+        result = scanner.scan(
             self._image,
             status_callback=on_stage,
             use_cache=True,
@@ -80,10 +89,15 @@ class MainWindow(QMainWindow):
         self._scan_result: ScanResult | None = None
         self._source_path: Path | None = None
         self._thread: QThread | None = None
-        self._worker: ScanWorker | None = None
         self._processing = False
         self._scan_generation = 0
         self._scanner = DocumentScanner()
+
+        self._thread = QThread(self)
+        self._worker = ScanWorker()
+        self._worker.moveToThread(self._thread)
+        self._thread.start()
+        _diag("THREAD CREATED")
 
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
@@ -226,6 +240,9 @@ class MainWindow(QMainWindow):
         self.chk_refine.stateChanged.connect(self._on_setting_changed)
         self.chk_overlay.stateChanged.connect(self._refresh_pipeline_overlay)
 
+        self._worker.stage_changed.connect(self.status_label.set_progress)
+        self._worker.finished.connect(self._on_scan_finished)
+
     def _on_morph_changed(self, val: int) -> None:
         if val % 2 == 0:
             self.morph_kernel.setValue(val + 1)
@@ -248,7 +265,7 @@ class MainWindow(QMainWindow):
             canny_lower=lower,
             canny_upper=upper,
             morph_kernel_size=morph,
-            enhancement_mode=self.enhancement_mode.currentData(),
+            enhancement_mode=self.enhancement_mode.currentData(Qt.UserRole),
             preprocess_options=PreprocessOptions(
                 use_clahe=self.chk_clahe.isChecked(),
                 use_bilateral=self.chk_bilateral.isChecked(),
@@ -262,6 +279,7 @@ class MainWindow(QMainWindow):
     def _on_setting_changed(self, *_args) -> None:
         if self._full_image is None:
             return
+        self._scanner.invalidate_cache()
         self._scan_generation += 1
         self._debounce.start()
 
@@ -305,30 +323,22 @@ class MainWindow(QMainWindow):
             self._debounce.start()
             return
 
+        if self._thread is None:
+            return
+
         self._processing = True
         generation = self._scan_generation
         self.status_label.set_progress("Processing...")
+        _diag(f"SCAN STARTED (generation={generation})")
 
         config = self._build_config()
         work_image = self._preview_image if self._preview_image is not None else self._full_image
 
-        if self._thread is not None and self._thread.isRunning():
-            self._thread.requestInterruption()
-            self._thread.quit()
-            self._thread.wait(200)
-
-        self._thread = QThread()
-        self._worker = ScanWorker(self._scanner, work_image, config, generation)
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.stage_changed.connect(self.status_label.set_progress)
-        self._worker.finished.connect(self._on_scan_finished)
-        self._worker.finished.connect(self._thread.quit)
-        self._worker.finished.connect(self._worker.deleteLater)
-        self._thread.finished.connect(self._thread.deleteLater)
-        self._thread.start()
+        self._worker.prepare(work_image, config, generation)
+        QMetaObject.invokeMethod(self._worker, "run", Qt.ConnectionType.QueuedConnection)
 
     def _on_scan_finished(self, generation: int, result: ScanResult) -> None:
+        _diag(f"SCAN COMPLETED (generation={generation})")
         self._processing = False
 
         if generation != self._scan_generation:
@@ -340,6 +350,16 @@ class MainWindow(QMainWindow):
 
         if self._scan_generation != generation:
             self._debounce.start()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        thread = self._thread
+        if thread is not None and thread.isRunning():
+            thread.quit()
+            thread.wait(3000)
+            _diag("THREAD FINISHED")
+        self._thread = None
+        _diag("THREAD CLEANED UP")
+        super().closeEvent(event)
 
     def _apply_result(self, result: ScanResult) -> None:
         if not result.success:
@@ -384,6 +404,10 @@ class MainWindow(QMainWindow):
             f"Output resolution: {out_res[0]}×{out_res[1]}",
             f"Mode: {mode}",
         ]
+        if result.applied_config is not None:
+            for line in format_active_config(result.applied_config).splitlines():
+                if line.startswith("  "):
+                    lines.append(line.strip())
         self.metrics_label.setText("\n".join(lines))
 
     def _on_save(self) -> None:

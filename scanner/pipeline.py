@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ from scanner.edge_detection import detect_edges
 from scanner.enhancement import EnhancementMode, enhance_document
 from scanner.perspective import correct_perspective
 from scanner.preprocessing import PreprocessOptions, preprocess, to_grayscale
+from scanner.config_log import log_active_config
 from utils.image_utils import resize_for_preview, scale_corners_to_full, validate_image
 
 
@@ -68,6 +70,7 @@ class ScanResult:
     output_resolution: tuple[int, int] | None = None
     preview_mode: bool = False
     preview_scale: float = 1.0
+    applied_config: ScanConfig | None = None
 
 
 class DocumentScanner:
@@ -155,6 +158,7 @@ class DocumentScanner:
 
         original = work_image.copy()
         emit("Processing...")
+        log_active_config(self.config)
 
         try:
             t0 = time.perf_counter()
@@ -203,11 +207,12 @@ class DocumentScanner:
                 )
             else:
                 detection = find_document_corners(
-                    edges,
+                    closed_edges,
                     original.shape,
                     morph_kernel_size=self.config.morph_kernel_size,
                     epsilon_ratio=self.config.epsilon_ratio,
                     min_area_ratio=self.config.min_area_ratio,
+                    edges_pre_closed=True,
                 )
             timings["contour_detection"] = time.perf_counter() - t0
 
@@ -294,6 +299,7 @@ class DocumentScanner:
                 preview_scale=preview_scale,
                 elapsed_seconds=elapsed,
                 timings=timings,
+                applied_config=copy.deepcopy(self.config),
             )
 
         except Exception as exc:

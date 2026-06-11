@@ -77,6 +77,14 @@ python main.py
 python scripts/benchmark.py
 ```
 
+### Verify Parameter Wiring
+
+```bash
+python scripts/validate_parameters.py
+```
+
+See [PARAMETER_VALIDATION.md](PARAMETER_VALIDATION.md) for the full GUI → OpenCV connection checklist. Every scan logs active parameter values to the console.
+
 ---
 
 ## Dependencies
