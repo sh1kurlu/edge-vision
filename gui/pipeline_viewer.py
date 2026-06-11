@@ -10,29 +10,28 @@ from utils.image_utils import gray_to_bgr
 
 class PipelineViewer(QWidget):
     TAB_NAMES = (
-        "Original",
-        "Grayscale",
-        "Edge Detection",
-        "Morphology",
-        "Contour Detection",
-        "Perspective Corrected",
-        "Final Enhanced Scan",
+        ("Original", "Original"),
+        ("Grayscale", "Grayscale"),
+        ("Edge Detection", "Edges"),
+        ("Morphology", "Morph"),
+        ("Contour Detection", "Contours"),
+        ("Perspective Corrected", "Perspective"),
+        ("Final Enhanced Scan", "Final"),
     )
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         self._tabs = QTabWidget()
+        self._tabs.setObjectName("pipelineTabs")
         self._viewers: dict[str, ImagePreview] = {}
-        for name in self.TAB_NAMES:
-            preview = ImagePreview(f"Waiting for {name.lower()}...")
-            preview.setStyleSheet(
-                "QLabel { background-color: #12151a; color: #6b7280; border: none; border-radius: 6px; }"
-            )
-            self._viewers[name] = preview
-            self._tabs.addTab(preview, name)
+        for key, label in self.TAB_NAMES:
+            preview = ImagePreview(f"No {label.lower()} output yet")
+            self._viewers[key] = preview
+            self._tabs.addTab(preview, label)
         layout.addWidget(self._tabs)
 
     def update_stages(

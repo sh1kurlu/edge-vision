@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Property, QEasingCurve, QPoint, QPropertyAnimation, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen, QPixmap
 from PySide6.QtWidgets import QWidget
 
@@ -10,33 +10,20 @@ from utils.image_utils import numpy_to_qimage_rgb
 class ComparisonWidget(QWidget):
     dividerMoved = Signal(float)
 
-    HANDLE_RADIUS = 22
-    HANDLE_HIT = 28
+    HANDLE_WIDTH = 3
+    HANDLE_GRIP = 18
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self.setObjectName("comparisonWidget")
         self._before: QPixmap | None = None
         self._after: QPixmap | None = None
         self._divider = 0.5
-        self._divider_display = 0.5
         self._dragging = False
         self._handle_hover = False
-        self._anim = QPropertyAnimation(self, b"dividerDisplay", self)
-        self._anim.setDuration(120)
-        self._anim.setEasingCurve(QEasingCurve.OutCubic)
 
-        self.setMinimumSize(400, 300)
+        self.setMinimumSize(480, 360)
         self.setMouseTracking(True)
-        self.setStyleSheet("background-color: #12151a; border: 1px solid #2f3540; border-radius: 8px;")
-
-    def getDividerDisplay(self) -> float:
-        return self._divider_display
-
-    def setDividerDisplay(self, value: float) -> None:
-        self._divider_display = value
-        self.update()
-
-    dividerDisplay = Property(float, getDividerDisplay, setDividerDisplay)
 
     def set_images(self, before, after) -> None:
         import numpy as np
@@ -48,7 +35,6 @@ class ComparisonWidget(QWidget):
         if after is not None and isinstance(after, np.ndarray) and after.size > 0:
             self._after = QPixmap.fromImage(numpy_to_qimage_rgb(after))
         self._divider = 0.5
-        self._divider_display = 0.5
         self.update()
 
     def _image_rect(self) -> tuple[int, int, int, int] | None:
@@ -65,27 +51,37 @@ class ComparisonWidget(QWidget):
         if rect is None:
             return None
         x, _, w, _ = rect
-        return x + int(w * self._divider_display)
+        return x + int(w * self._divider)
 
     def _near_handle(self, pos_x: float) -> bool:
         line_x = self._line_x()
-        return line_x is not None and abs(pos_x - line_x) <= self.HANDLE_HIT
+        return line_x is not None and abs(pos_x - line_x) <= self.HANDLE_GRIP
+
+    def _draw_label(self, painter: QPainter, text: str, x: int, y: int) -> None:
+        metrics = painter.fontMetrics()
+        pad_x, pad_y = 8, 4
+        w = metrics.horizontalAdvance(text) + pad_x * 2
+        h = metrics.height() + pad_y
+        painter.fillRect(x, y, w, h, QColor(0, 0, 0, 140))
+        painter.setPen(QColor("#e0e0e0"))
+        painter.drawText(x + pad_x, y + metrics.ascent() + pad_y // 2, text)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        painter.fillRect(self.rect(), QColor("#0d0f13"))
+        painter.fillRect(self.rect(), QColor("#181818"))
 
         if self._before is None and self._after is None:
-            painter.setPen(QColor("#6b7280"))
+            painter.setPen(QColor("#6e6e6e"))
             font = QFont()
             font.setPointSize(11)
             painter.setFont(font)
             painter.drawText(
                 self.rect(),
                 Qt.AlignCenter,
-                "Upload an image\n\nDrag the handle to compare rectified vs enhanced",
+                "Comparison will appear here after scanning.\n"
+                "Drag the divider to compare rectified and enhanced results.",
             )
             painter.end()
             return
@@ -96,7 +92,7 @@ class ComparisonWidget(QWidget):
             return
 
         x, y, w, h = rect
-        line_x = x + int(w * self._divider_display)
+        line_x = x + int(w * self._divider)
 
         if self._before is not None:
             painter.drawPixmap(x, y, w, h, self._before)
@@ -105,38 +101,37 @@ class ComparisonWidget(QWidget):
             painter.drawPixmap(x, y, w, h, self._after)
             painter.setClipping(False)
 
-        painter.setPen(QPen(QColor("#ffffff"), 3))
+        line_color = QColor("#ffffff") if self._handle_hover or self._dragging else QColor("#858585")
+        painter.setPen(QPen(line_color, self.HANDLE_WIDTH))
         painter.drawLine(line_x, y, line_x, y + h)
 
         handle_y = y + h // 2
-        handle_color = QColor("#4c8bf5") if self._handle_hover or self._dragging else QColor("#2d6cdf")
-        painter.setBrush(QBrush(handle_color))
-        painter.setPen(QPen(Qt.white, 2))
-        painter.drawEllipse(QPoint(line_x, handle_y), self.HANDLE_RADIUS, self.HANDLE_RADIUS)
-
-        arrow_pen = QPen(Qt.white, 2)
-        painter.setPen(arrow_pen)
-        painter.drawLine(line_x - 10, handle_y, line_x - 4, handle_y)
-        painter.drawLine(line_x - 6, handle_y - 4, line_x - 4, handle_y)
-        painter.drawLine(line_x - 6, handle_y + 4, line_x - 4, handle_y)
-        painter.drawLine(line_x + 10, handle_y, line_x + 4, handle_y)
-        painter.drawLine(line_x + 6, handle_y - 4, line_x + 4, handle_y)
-        painter.drawLine(line_x + 6, handle_y + 4, line_x + 4, handle_y)
+        grip_h = 36
+        grip_w = 8
+        grip_color = QColor("#cccccc") if self._handle_hover or self._dragging else QColor("#6e6e6e")
+        painter.setBrush(QBrush(grip_color))
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(
+            line_x - grip_w // 2,
+            handle_y - grip_h // 2,
+            grip_w,
+            grip_h,
+            2,
+            2,
+        )
 
         label_font = QFont()
         label_font.setPointSize(9)
-        label_font.setBold(True)
+        label_font.setWeight(QFont.DemiBold)
         painter.setFont(label_font)
-        painter.setPen(QColor("#c8cdd5"))
-        painter.drawText(x + 8, y + 20, "Rectified")
-        painter.drawText(x + w - 72, y + 20, "Enhanced")
+        self._draw_label(painter, "Rectified", x + 10, y + 10)
+        self._draw_label(painter, "Enhanced", x + w - 90, y + 10)
 
         painter.end()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.LeftButton and self._near_handle(event.position().x()):
             self._dragging = True
-            self._anim.stop()
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
@@ -154,25 +149,18 @@ class ComparisonWidget(QWidget):
             x, _, w, _ = rect
             rel = (event.position().x() - x) / max(w, 1)
             self._divider = max(0.02, min(0.98, rel))
-            self._divider_display = self._divider
             self.dividerMoved.emit(self._divider)
             self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if self._dragging:
             self._dragging = False
-            self._animate_to(self._divider)
+            self.update()
         self.setCursor(Qt.SplitHCursor if self._handle_hover else Qt.ArrowCursor)
-
-    def _animate_to(self, target: float) -> None:
-        self._anim.stop()
-        self._anim.setStartValue(self._divider_display)
-        self._anim.setEndValue(target)
-        self._anim.start()
 
     def reset_view(self) -> None:
         self._divider = 0.5
-        self._animate_to(0.5)
+        self.update()
 
     def leaveEvent(self, event) -> None:
         self._handle_hover = False

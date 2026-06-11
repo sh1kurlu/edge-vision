@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QSlider, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
 
 
 class LabeledSlider(QWidget):
@@ -19,12 +19,23 @@ class LabeledSlider(QWidget):
         super().__init__(parent)
         self._block = False
 
-        layout = QHBoxLayout(self)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
 
         self._name = QLabel(label)
-        self._name.setMinimumWidth(100)
-        layout.addWidget(self._name)
+        self._name.setObjectName("sliderLabel")
+        header.addWidget(self._name)
+
+        self._value_label = QLabel(str(value))
+        self._value_label.setObjectName("sliderValue")
+        self._value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        header.addWidget(self._value_label)
+
+        layout.addLayout(header)
 
         self._slider = QSlider(Qt.Horizontal)
         self._slider.setMinimum(minimum)
@@ -32,12 +43,7 @@ class LabeledSlider(QWidget):
         self._slider.setValue(value)
         self._slider.setSingleStep(step)
         self._slider.setPageStep(max(step * 2, 1))
-        layout.addWidget(self._slider, stretch=1)
-
-        self._value_label = QLabel(str(value))
-        self._value_label.setMinimumWidth(36)
-        self._value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        layout.addWidget(self._value_label)
+        layout.addWidget(self._slider)
 
         self._slider.valueChanged.connect(self._on_changed)
 

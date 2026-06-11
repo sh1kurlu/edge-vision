@@ -9,13 +9,17 @@ class AppHeader(QWidget):
         self.setObjectName("appHeader")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 8, 4, 12)
+        layout.setContentsMargins(0, 0, 0, 16)
         layout.setSpacing(2)
 
         title = QLabel("EDGEVISION")
         title.setObjectName("appTitle")
         layout.addWidget(title)
 
-        tagline = QLabel("Transform photos into clean scans.")
+        subtitle = QLabel("Smart Document Scanner")
+        subtitle.setObjectName("appSubtitle")
+        layout.addWidget(subtitle)
+
+        tagline = QLabel("Transform photos into clean scans using computer vision.")
         tagline.setObjectName("appTagline")
         layout.addWidget(tagline)
