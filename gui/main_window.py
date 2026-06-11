@@ -23,11 +23,11 @@ from PySide6.QtWidgets import (
 )
 
 from gui.comparison_widget import ComparisonWidget
+from gui.header import AppHeader
 from gui.labeled_slider import LabeledSlider
 from gui.pipeline_viewer import PipelineViewer
 from gui.theme import DARK_THEME
 from gui.widgets import StatusBarLabel
-from gui.zoom_pan_viewer import ZoomPanViewer
 from scanner.enhancement import EnhancementMode
 from scanner.pipeline import DocumentScanner, ScanConfig, ScanResult
 from scanner.preprocessing import PreprocessOptions
@@ -38,7 +38,7 @@ DEBOUNCE_MS = 400
 
 
 class ScanWorker(QObject):
-    finished = Signal(object)
+    finished = Signal(int, object)
     stage_changed = Signal(str)
 
     def __init__(
@@ -46,13 +46,13 @@ class ScanWorker(QObject):
         scanner: DocumentScanner,
         image: np.ndarray,
         config: ScanConfig,
-        preview_corners: np.ndarray | None = None,
+        generation: int,
     ) -> None:
         super().__init__()
         self._scanner = scanner
         self._image = image
         self._config = config
-        self._preview_corners = preview_corners
+        self._generation = generation
 
     @Slot()
     def run(self) -> None:
@@ -62,29 +62,27 @@ class ScanWorker(QObject):
         self._scanner.config = self._config
         result = self._scanner.scan(
             self._image,
-            manual_corners=self._preview_corners,
             status_callback=on_stage,
             use_cache=True,
         )
-        self.finished.emit(result)
+        self.finished.emit(self._generation, result)
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Document Scanner Pro")
+        self.setWindowTitle("EdgeVision")
         self.resize(1400, 860)
         self.setStyleSheet(DARK_THEME)
 
         self._full_image: np.ndarray | None = None
         self._preview_image: np.ndarray | None = None
-        self._preview_scale: float = 1.0
         self._scan_result: ScanResult | None = None
         self._source_path: Path | None = None
         self._thread: QThread | None = None
         self._worker: ScanWorker | None = None
-        self._manual_corners: np.ndarray | None = None
         self._processing = False
+        self._scan_generation = 0
         self._scanner = DocumentScanner()
 
         self._debounce = QTimer(self)
@@ -98,23 +96,27 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         central = QWidget()
         self.setCentralWidget(central)
-        root = QHBoxLayout(central)
-        root.setSpacing(12)
-        root.setContentsMargins(12, 12, 12, 12)
+        root = QVBoxLayout(central)
+        root.setSpacing(8)
+        root.setContentsMargins(16, 12, 16, 16)
+
+        root.addWidget(AppHeader())
 
         main_splitter = QSplitter()
-        root.addWidget(main_splitter)
+        root.addWidget(main_splitter, stretch=1)
 
         controls_scroll = QScrollArea()
         controls_scroll.setWidgetResizable(True)
-        controls_scroll.setMaximumWidth(360)
-        controls_scroll.setMinimumWidth(300)
+        controls_scroll.setMaximumWidth(340)
+        controls_scroll.setMinimumWidth(280)
         controls_panel = QWidget()
         controls_layout = QVBoxLayout(controls_panel)
-        controls_layout.setSpacing(10)
+        controls_layout.setSpacing(12)
+        controls_layout.setContentsMargins(4, 4, 8, 4)
 
         file_group = QGroupBox("File")
         file_layout = QVBoxLayout(file_group)
+        file_layout.setSpacing(8)
         self.upload_btn = QPushButton("Upload Image")
         self.save_btn = QPushButton("Save Result")
         self.save_btn.setEnabled(False)
@@ -127,6 +129,7 @@ class MainWindow(QMainWindow):
 
         detect_group = QGroupBox("Detection")
         detect_form = QFormLayout(detect_group)
+        detect_form.setSpacing(10)
         self.canny_lower = LabeledSlider("Canny Lower", 0, 500, 75)
         self.canny_upper = LabeledSlider("Canny Upper", 1, 500, 200)
         self.morph_kernel = LabeledSlider("Morph Kernel", 3, 31, 5, step=2)
@@ -146,6 +149,7 @@ class MainWindow(QMainWindow):
 
         pre_group = QGroupBox("Optional Preprocessing")
         pre_layout = QVBoxLayout(pre_group)
+        pre_layout.setSpacing(6)
         self.chk_clahe = QCheckBox("CLAHE contrast enhancement")
         self.chk_bilateral = QCheckBox("Bilateral filtering")
         self.chk_shadow = QCheckBox("Shadow reduction")
@@ -162,25 +166,20 @@ class MainWindow(QMainWindow):
 
         view_group = QGroupBox("Visualization")
         view_layout = QVBoxLayout(view_group)
+        view_layout.setSpacing(6)
         self.chk_overlay = QCheckBox("Show Detection Overlay")
         self.chk_overlay.setChecked(True)
-        self.chk_corner_edit = QCheckBox("Manual Corner Editing")
-        self.btn_reset_zoom = QPushButton("Reset Zoom / Comparison")
-        self.btn_fit = QPushButton("Fit to Window")
+        self.btn_reset_comparison = QPushButton("Reset Comparison")
+        self.btn_reset_comparison.setObjectName("secondaryButton")
         view_layout.addWidget(self.chk_overlay)
-        view_layout.addWidget(self.chk_corner_edit)
-        view_layout.addWidget(self.btn_reset_zoom)
-        view_layout.addWidget(self.btn_fit)
+        view_layout.addWidget(self.btn_reset_comparison)
         controls_layout.addWidget(view_group)
 
-        metrics_group = QGroupBox("Metrics")
+        metrics_group = QGroupBox("Processing Info")
         metrics_layout = QVBoxLayout(metrics_group)
         self.metrics_label = QLabel("No scan yet.")
         self.metrics_label.setObjectName("metricsLabel")
         self.metrics_label.setWordWrap(True)
-        self.confidence_label = QLabel("Detection Confidence: —")
-        self.confidence_label.setStyleSheet("font-weight: 600; color: #6fcf97;")
-        metrics_layout.addWidget(self.confidence_label)
         metrics_layout.addWidget(self.metrics_label)
         controls_layout.addWidget(metrics_group)
 
@@ -192,36 +191,46 @@ class MainWindow(QMainWindow):
         controls_scroll.setWidget(controls_panel)
         main_splitter.addWidget(controls_scroll)
 
-        viz_splitter = QSplitter()
+        viz_panel = QWidget()
+        viz_layout = QVBoxLayout(viz_panel)
+        viz_layout.setContentsMargins(0, 0, 0, 0)
+        viz_layout.setSpacing(8)
+
+        compare_label = QLabel("Enhancement Comparison")
+        compare_label.setObjectName("sectionTitle")
+        viz_layout.addWidget(compare_label)
+
         self.viz_tabs = QTabWidget()
         self.comparison = ComparisonWidget()
         self.pipeline_viewer = PipelineViewer()
-        self.zoom_original = ZoomPanViewer("Original — scroll to zoom, drag to pan")
         self.viz_tabs.addTab(self.comparison, "Compare")
         self.viz_tabs.addTab(self.pipeline_viewer, "Pipeline")
-        self.viz_tabs.addTab(self.zoom_original, "Zoom / Pan")
-        viz_splitter.addWidget(self.viz_tabs)
-        main_splitter.addWidget(viz_splitter)
-        main_splitter.setSizes([320, 1080])
+        viz_layout.addWidget(self.viz_tabs, stretch=1)
+
+        main_splitter.addWidget(viz_panel)
+        main_splitter.setSizes([300, 1100])
 
     def _connect_signals(self) -> None:
         self.upload_btn.clicked.connect(self._on_upload)
         self.save_btn.clicked.connect(self._on_save)
-        self.btn_reset_zoom.clicked.connect(self._on_reset_view)
-        self.btn_fit.clicked.connect(self._on_fit_view)
+        self.btn_reset_comparison.clicked.connect(self.comparison.reset_view)
 
         self.canny_lower.valueChanged.connect(self._on_setting_changed)
         self.canny_upper.valueChanged.connect(self._on_setting_changed)
-        self.morph_kernel.valueChanged.connect(self._on_setting_changed)
+        self.morph_kernel.valueChanged.connect(self._on_morph_changed)
         self.enhancement_mode.currentIndexChanged.connect(self._on_setting_changed)
         self.chk_clahe.stateChanged.connect(self._on_setting_changed)
         self.chk_bilateral.stateChanged.connect(self._on_setting_changed)
         self.chk_shadow.stateChanged.connect(self._on_setting_changed)
         self.chk_multi.stateChanged.connect(self._on_setting_changed)
         self.chk_refine.stateChanged.connect(self._on_setting_changed)
-        self.chk_overlay.stateChanged.connect(self._update_display)
-        self.chk_corner_edit.stateChanged.connect(self._on_corner_edit_toggled)
-        self.zoom_original.cornersChanged.connect(self._on_manual_corners_changed)
+        self.chk_overlay.stateChanged.connect(self._refresh_pipeline_overlay)
+
+    def _on_morph_changed(self, val: int) -> None:
+        if val % 2 == 0:
+            self.morph_kernel.setValue(val + 1)
+            return
+        self._on_setting_changed()
 
     def _build_config(self) -> ScanConfig:
         morph = self.morph_kernel.value()
@@ -232,6 +241,8 @@ class MainWindow(QMainWindow):
         upper = self.canny_upper.value()
         if lower >= upper:
             upper = lower + 1
+            if self.canny_upper.value() != upper:
+                self.canny_upper.setValue(upper)
 
         return ScanConfig(
             canny_lower=lower,
@@ -251,6 +262,7 @@ class MainWindow(QMainWindow):
     def _on_setting_changed(self, *_args) -> None:
         if self._full_image is None:
             return
+        self._scan_generation += 1
         self._debounce.start()
 
     def _on_upload(self) -> None:
@@ -275,42 +287,38 @@ class MainWindow(QMainWindow):
             return
 
         self._full_image = image
-        self._preview_image, self._preview_scale = resize_for_preview(image, 1200)
+        self._preview_image, _ = resize_for_preview(image, 1200)
         self._source_path = Path(path)
         self._scan_result = None
-        self._manual_corners = None
         self._scanner.invalidate_cache()
-
-        self.zoom_original.set_image(image)
-        self.comparison.set_images(image, None)
+        self.comparison.set_images(None, None)
         self.save_btn.setEnabled(False)
         self.status_label.set_success(f"Loaded: {self._source_path.name}")
+        self._scan_generation += 1
         self._schedule_scan()
 
     def _schedule_scan(self) -> None:
-        if self._full_image is None or self._processing:
-            if self._full_image is not None and self._processing:
-                self._debounce.start()
+        if self._full_image is None:
+            return
+
+        if self._processing:
+            self._debounce.start()
             return
 
         self._processing = True
+        generation = self._scan_generation
         self.status_label.set_progress("Processing...")
 
         config = self._build_config()
         work_image = self._preview_image if self._preview_image is not None else self._full_image
 
-        preview_corners = None
-        if self._manual_corners is not None and self._preview_scale < 1.0:
-            preview_corners = (self._manual_corners * self._preview_scale).astype(np.float32)
-        elif self._manual_corners is not None:
-            preview_corners = self._manual_corners
-
         if self._thread is not None and self._thread.isRunning():
+            self._thread.requestInterruption()
             self._thread.quit()
-            self._thread.wait(100)
+            self._thread.wait(200)
 
         self._thread = QThread()
-        self._worker = ScanWorker(self._scanner, work_image, config, preview_corners=preview_corners)
+        self._worker = ScanWorker(self._scanner, work_image, config, generation)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.stage_changed.connect(self.status_label.set_progress)
@@ -320,37 +328,51 @@ class MainWindow(QMainWindow):
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
 
-    def _on_scan_finished(self, result: ScanResult) -> None:
+    def _on_scan_finished(self, generation: int, result: ScanResult) -> None:
         self._processing = False
-        self._scan_result = result
 
-        if not result.success:
-            before = self._full_image
-            self.comparison.set_images(before, result.detection_overlay or before)
-            self.pipeline_viewer.update_stages(before, result.stages, result.detection_overlay)
-            self.save_btn.setEnabled(False)
-            self.confidence_label.setText(f"Detection Confidence: {result.confidence:.0f}%")
-            self._update_metrics(result)
-            self.status_label.set_error(result.message)
-            self._update_corner_editor(result)
-            if self._full_image is not None:
-                self._debounce.start()
+        if generation != self._scan_generation:
+            self._debounce.start()
             return
 
-        display = result.enhanced if result.enhanced is not None else result.warped
-        before = self._full_image
-        self.comparison.set_images(before, display)
-        self.pipeline_viewer.update_stages(
-            before, result.stages, result.detection_overlay, display
-        )
+        self._scan_result = result
+        self._apply_result(result)
+
+        if self._scan_generation != generation:
+            self._debounce.start()
+
+    def _apply_result(self, result: ScanResult) -> None:
+        if not result.success:
+            self.comparison.set_images(None, None)
+            self.pipeline_viewer.update_stages(
+                self._full_image, result.stages, result.detection_overlay
+            )
+            self.save_btn.setEnabled(False)
+            self._update_metrics(result)
+            self.status_label.set_error(result.message)
+            return
+
+        warped = result.warped
+        enhanced = result.enhanced if result.enhanced is not None else result.warped
+        self.comparison.set_images(warped, enhanced)
+        self._refresh_pipeline_overlay()
         self.save_btn.setEnabled(True)
-        self.confidence_label.setText(f"Detection Confidence: {result.confidence:.0f}%")
         self._update_metrics(result)
-        self.status_label.set_success(
-            f"Done ({result.elapsed_seconds * 1000:.0f} ms) — auto-updating on setting changes"
+        self.status_label.set_success(f"Done ({result.elapsed_seconds * 1000:.0f} ms)")
+
+    def _refresh_pipeline_overlay(self) -> None:
+        if self._scan_result is None or self._full_image is None:
+            return
+
+        result = self._scan_result
+        overlay = result.detection_overlay if self.chk_overlay.isChecked() else None
+        self.pipeline_viewer.update_stages(
+            self._full_image,
+            result.stages,
+            overlay,
+            result.warped,
+            result.enhanced,
         )
-        self._update_display()
-        self._update_corner_editor(result)
 
     def _update_metrics(self, result: ScanResult) -> None:
         in_res = result.input_resolution or (0, 0)
@@ -362,48 +384,7 @@ class MainWindow(QMainWindow):
             f"Output resolution: {out_res[0]}×{out_res[1]}",
             f"Mode: {mode}",
         ]
-        if result.detection and result.detection.strategy:
-            lines.append(f"Strategy: {result.detection.strategy}")
         self.metrics_label.setText("\n".join(lines))
-
-    def _update_display(self) -> None:
-        if self._scan_result is None or self._full_image is None:
-            return
-
-        after = self._scan_result.enhanced or self._scan_result.warped
-        self.comparison.set_images(self._full_image, after)
-
-        corners = self._manual_corners if self._manual_corners is not None else self._scan_result.corners
-        show = self.chk_overlay.isChecked()
-        if corners is not None and self._preview_scale < 1.0 and self._scan_result.preview_mode:
-            display_corners = corners
-        else:
-            display_corners = corners
-
-        self.comparison.set_overlay_corners(display_corners, show)
-
-    def _update_corner_editor(self, result: ScanResult) -> None:
-        corners = self._manual_corners if self._manual_corners is not None else result.corners
-        editable = self.chk_corner_edit.isChecked()
-        if self._full_image is not None:
-            self.zoom_original.set_image(self._full_image)
-            if corners is not None:
-                self.zoom_original.set_corners(corners, editable=editable)
-
-    def _on_corner_edit_toggled(self) -> None:
-        if self._scan_result:
-            self._update_corner_editor(self._scan_result)
-
-    def _on_manual_corners_changed(self, corners: np.ndarray) -> None:
-        self._manual_corners = corners.copy()
-        self._debounce.start()
-
-    def _on_reset_view(self) -> None:
-        self.comparison.reset_view()
-        self.zoom_original.reset_zoom()
-
-    def _on_fit_view(self) -> None:
-        self.zoom_original.fit_in_view()
 
     def _on_save(self) -> None:
         if self._scan_result is None or self._full_image is None:
@@ -456,9 +437,7 @@ class MainWindow(QMainWindow):
         self.status_label.set_progress("Exporting at full resolution...")
         config = self._build_config()
         scanner = DocumentScanner(config)
-        corners = self._manual_corners if self._manual_corners is not None else (
-            self._scan_result.corners if self._scan_result else None
-        )
+        corners = self._scan_result.corners if self._scan_result else None
         result = scanner.scan_for_export(self._full_image, corners=corners)
         if not result.success:
             raise ValueError(result.message)

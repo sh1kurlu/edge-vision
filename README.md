@@ -16,25 +16,23 @@ Built entirely in Python using classical computer vision (OpenCV) and PySide6.
 - **Enhancement modes** — Adaptive thresholding, Otsu thresholding, or no enhancement
 - **Export formats** — PNG, JPG, and single-page PDF
 
-### Professional UI/UX (new)
-- **Real-time processing** — Results update automatically when sliders or settings change (400 ms debounce)
-- **Interactive sliders** — Live Canny and morphological kernel controls with value display
-- **Before/after comparison** — Drag a vertical divider to compare original vs scanned output
-- **Zoom & pan** — Mouse wheel zoom, click-drag pan, fit-to-window, reset view
-- **Detection overlay** — Toggle contour, corners, and boundary visualization on the original image
-- **Pipeline inspector** — Tabs for Original, Grayscale, Edges, Morphology, Detected Contour, Final Scan
-- **Manual corner editing** — Drag corner handles for live perspective correction
-- **Dark modern theme** — Professional styling with responsive `QSplitter` layout
+### EdgeVision UI
+- **EdgeVision branding** — Clean header with application identity
+- **Real-time processing** — Canny, morph, and enhancement controls update results automatically (400 ms debounce)
+- **Interactive sliders** — Live parameter controls with current value display
+- **Enhancement comparison** — Drag the handle to compare **perspective-corrected** vs **enhanced** output
+- **Detection overlay** — Toggle contour and corner visualization in the pipeline viewer
+- **Pipeline inspector** — Original → Grayscale → Edge Detection → Morphology → Contour Detection → Perspective Corrected → Final Enhanced Scan
+- **Dark modern theme** — Polished layout for portfolio and demo use
 
-### Performance & Intelligence (new)
+### Performance
 - **Background worker threads** — GUI stays responsive during processing
 - **Smart preview mode** — Fast preview processing; full resolution on export
 - **Processing cache** — Grayscale/blur cached until image or preprocessing options change
 - **Multi-strategy detection** — Fallback to adaptive threshold and largest-rectangle search
-- **Detection confidence** — Score based on rectangularity, area, corners, and edge strength
 - **cornerSubPix refinement** — Optional sub-pixel corner accuracy before warping
 - **Optional preprocessing** — CLAHE, bilateral filtering, shadow reduction
-- **Live metrics** — Processing time, confidence, input/output resolution
+- **Live metrics** — Processing time and input/output resolution
 
 ---
 
@@ -98,12 +96,11 @@ python scripts/benchmark.py
 1. **Launch** the application with `python main.py`.
 2. Click **Upload Image** and select a JPG, JPEG, PNG, or BMP file.
 3. The scan runs automatically — adjust **sliders** and watch results update in real time.
-4. Use the **Compare** tab to drag the divider between before/after views.
-5. Open the **Pipeline** tab to inspect each processing stage.
-6. Enable **Show Detection Overlay** to visualize corners and boundaries.
-7. Enable **Manual Corner Editing** on the Zoom/Pan tab to fine-tune corners.
-8. Check **Export Original Resolution** before saving for full-quality output.
-9. Click **Save Result** to export as PNG, JPG, or PDF.
+4. Use the **Compare** tab — drag the handle to compare the rectified document (left) with the enhanced scan (right).
+5. Open the **Pipeline** tab to inspect every stage of the pipeline.
+6. Enable **Show Detection Overlay** to visualize corners and boundaries on the contour tab.
+7. Check **Export Original Resolution** before saving for full-quality output.
+8. Click **Save Result** to export as PNG, JPG, or PDF.
 
 ### Tips for Best Results
 
@@ -136,16 +133,17 @@ Input Image
     │
     ▼
 [6] Douglas–Peucker Approximation — select largest 4-vertex quad
-    │                              (NOT Convex Hull — see report)
     ▼
-[7] Perspective Transform — getPerspectiveTransform + warpPerspective
-    │
+[7] Perspective Transform — rectified document
+    │                         └── Compare tab (left side)
     ▼
 [8] Enhancement — Adaptive or Otsu thresholding
-    │
+    │              └── Compare tab (right side)
     ▼
 Scanned Output
 ```
+
+The **Compare** tab shows rectified vs enhanced — exactly what the enhancement stage changes.
 
 ### Why Douglas–Peucker over Convex Hull?
 
@@ -164,8 +162,8 @@ document_scanner/
 │   ├── comparison_widget.py
 │   ├── labeled_slider.py
 │   ├── pipeline_viewer.py
-│   ├── theme.py
-│   └── zoom_pan_viewer.py
+│   ├── header.py
+│   └── theme.py
 ├── scanner/
 │   ├── preprocessing.py
 │   ├── edge_detection.py

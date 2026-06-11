@@ -12,7 +12,6 @@ class DocumentDetectionResult:
     success: bool
     message: str
     contour_area: float = 0.0
-    confidence: float = 0.0
     strategy: str = "canny_contour"
 
 
@@ -36,63 +35,6 @@ def _is_valid_quadrilateral(approx: np.ndarray, min_area: float) -> bool:
         return False
 
     return cv2.isContourConvex(approx)
-
-
-def _angle_quality(corners: np.ndarray) -> float:
-    pts = corners.reshape(4, 2).astype(np.float32)
-    scores = []
-    for i in range(4):
-        p0 = pts[i]
-        p1 = pts[(i + 1) % 4]
-        p2 = pts[(i + 2) % 4]
-        v1 = p0 - p1
-        v2 = p2 - p1
-        n1 = np.linalg.norm(v1)
-        n2 = np.linalg.norm(v2)
-        if n1 < 1e-6 or n2 < 1e-6:
-            scores.append(0.0)
-            continue
-        cos_angle = np.clip(np.dot(v1, v2) / (n1 * n2), -1.0, 1.0)
-        angle = np.degrees(np.arccos(cos_angle))
-        scores.append(1.0 - min(abs(angle - 90.0) / 90.0, 1.0))
-    return float(np.mean(scores))
-
-
-def _edge_strength_along_quad(edges: np.ndarray, corners: np.ndarray) -> float:
-    mask = np.zeros(edges.shape, dtype=np.uint8)
-    pts = corners.astype(np.int32).reshape(-1, 1, 2)
-    cv2.polylines(mask, [pts], isClosed=True, color=255, thickness=3)
-    edge_pixels = edges[mask > 0]
-    if edge_pixels.size == 0:
-        return 0.0
-    return float(np.mean(edge_pixels) / 255.0)
-
-
-def compute_detection_confidence(
-    corners: np.ndarray,
-    image_shape: tuple[int, ...],
-    contour_area: float,
-    edges: np.ndarray | None = None,
-) -> float:
-    height, width = image_shape[:2]
-    image_area = float(height * width)
-    area_ratio = np.clip(contour_area / image_area, 0.0, 1.0)
-
-    rect = cv2.minAreaRect(corners.astype(np.float32))
-    box = cv2.boxPoints(rect)
-    rect_area = max(cv2.contourArea(box), 1.0)
-    rectangularity = np.clip(contour_area / rect_area, 0.0, 1.0)
-
-    angle_score = _angle_quality(corners)
-    edge_score = _edge_strength_along_quad(edges, corners) if edges is not None else 0.5
-
-    confidence = (
-        0.30 * area_ratio
-        + 0.25 * rectangularity
-        + 0.25 * angle_score
-        + 0.20 * edge_score
-    )
-    return float(np.clip(confidence * 100.0, 0.0, 100.0))
 
 
 def _find_quad_from_contours(
@@ -144,13 +86,11 @@ def find_document_corners(
     corners, area = _find_quad_from_contours(contours, min_area, epsilon_ratio)
 
     if corners is not None:
-        confidence = compute_detection_confidence(corners, image_shape, area, closed_edges)
         return DocumentDetectionResult(
             corners=corners,
             success=True,
             message="Document detected successfully.",
             contour_area=area,
-            confidence=confidence,
             strategy="canny_contour",
         )
 
@@ -183,13 +123,11 @@ def find_document_corners_adaptive(
     corners, area = _find_quad_from_contours(contours, min_area, epsilon_ratio)
 
     if corners is not None:
-        confidence = compute_detection_confidence(corners, image_shape, area, None)
         return DocumentDetectionResult(
             corners=corners,
             success=True,
             message="Document detected via adaptive threshold.",
             contour_area=area,
-            confidence=confidence * 0.9,
             strategy="adaptive_threshold",
         )
 
@@ -225,13 +163,11 @@ def find_document_corners_largest_rect(
             best_corners = box
 
     if best_corners is not None:
-        confidence = compute_detection_confidence(best_corners, image_shape, best_area, edges)
         return DocumentDetectionResult(
             corners=best_corners,
             success=True,
             message="Document detected via largest rectangle search.",
             contour_area=best_area,
-            confidence=confidence * 0.85,
             strategy="largest_rect",
         )
 

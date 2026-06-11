@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import numpy as np
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QMouseEvent, QPainter, QPaintEvent, QPixmap, QWheelEvent
+from PySide6.QtCore import Property, QEasingCurve, QPoint, QPropertyAnimation, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen, QPixmap
 from PySide6.QtWidgets import QWidget
 
 from utils.image_utils import numpy_to_qimage_rgb
@@ -11,134 +10,172 @@ from utils.image_utils import numpy_to_qimage_rgb
 class ComparisonWidget(QWidget):
     dividerMoved = Signal(float)
 
+    HANDLE_RADIUS = 22
+    HANDLE_HIT = 28
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._before: QPixmap | None = None
         self._after: QPixmap | None = None
         self._divider = 0.5
+        self._divider_display = 0.5
         self._dragging = False
-        self._scale = 1.0
-        self._offset = QPoint(0, 0)
-        self._panning = False
-        self._pan_start = QPoint()
-        self._corners: np.ndarray | None = None
-        self._show_overlay = False
+        self._handle_hover = False
+        self._anim = QPropertyAnimation(self, b"dividerDisplay", self)
+        self._anim.setDuration(120)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
 
         self.setMinimumSize(400, 300)
         self.setMouseTracking(True)
         self.setStyleSheet("background-color: #12151a; border: 1px solid #2f3540; border-radius: 8px;")
 
-    def set_images(
-        self,
-        before: np.ndarray | None,
-        after: np.ndarray | None,
-    ) -> None:
-        self._before = None
-        self._after = None
-        if before is not None and before.size > 0:
-            self._before = QPixmap.fromImage(numpy_to_qimage_rgb(before))
-        if after is not None and after.size > 0:
-            self._after = QPixmap.fromImage(numpy_to_qimage_rgb(after))
-        self._scale = 1.0
-        self._offset = QPoint(0, 0)
+    def getDividerDisplay(self) -> float:
+        return self._divider_display
+
+    def setDividerDisplay(self, value: float) -> None:
+        self._divider_display = value
         self.update()
 
-    def set_overlay_corners(self, corners: np.ndarray | None, show: bool) -> None:
-        self._corners = corners
-        self._show_overlay = show
+    dividerDisplay = Property(float, getDividerDisplay, setDividerDisplay)
+
+    def set_images(self, before, after) -> None:
+        import numpy as np
+
+        self._before = None
+        self._after = None
+        if before is not None and isinstance(before, np.ndarray) and before.size > 0:
+            self._before = QPixmap.fromImage(numpy_to_qimage_rgb(before))
+        if after is not None and isinstance(after, np.ndarray) and after.size > 0:
+            self._after = QPixmap.fromImage(numpy_to_qimage_rgb(after))
+        self._divider = 0.5
+        self._divider_display = 0.5
         self.update()
+
+    def _image_rect(self) -> tuple[int, int, int, int] | None:
+        pix = self._after or self._before
+        if pix is None:
+            return None
+        w, h = pix.width(), pix.height()
+        x = (self.width() - w) // 2
+        y = (self.height() - h) // 2
+        return x, y, w, h
+
+    def _line_x(self) -> int | None:
+        rect = self._image_rect()
+        if rect is None:
+            return None
+        x, _, w, _ = rect
+        return x + int(w * self._divider_display)
+
+    def _near_handle(self, pos_x: float) -> bool:
+        line_x = self._line_x()
+        return line_x is not None and abs(pos_x - line_x) <= self.HANDLE_HIT
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        painter.fillRect(self.rect(), Qt.black)
+        painter.fillRect(self.rect(), QColor("#0d0f13"))
 
         if self._before is None and self._after is None:
-            painter.setPen(Qt.gray)
-            painter.drawText(self.rect(), Qt.AlignCenter, "Upload an image — drag divider to compare")
+            painter.setPen(QColor("#6b7280"))
+            font = QFont()
+            font.setPointSize(11)
+            painter.setFont(font)
+            painter.drawText(
+                self.rect(),
+                Qt.AlignCenter,
+                "Upload an image\n\nDrag the handle to compare rectified vs enhanced",
+            )
             painter.end()
             return
 
-        pix = self._after or self._before
-        if pix is None:
+        rect = self._image_rect()
+        if rect is None:
             painter.end()
             return
 
-        w = int(pix.width() * self._scale)
-        h = int(pix.height() * self._scale)
-        x = (self.width() - w) // 2 + self._offset.x()
-        y = (self.height() - h) // 2 + self._offset.y()
+        x, y, w, h = rect
+        line_x = x + int(w * self._divider_display)
 
         if self._before is not None:
             painter.drawPixmap(x, y, w, h, self._before)
         if self._after is not None:
-            clip_x = x + int(w * self._divider)
-            painter.setClipRect(clip_x, y, w - int(w * self._divider), h)
+            painter.setClipRect(line_x, y, x + w - line_x, h)
             painter.drawPixmap(x, y, w, h, self._after)
             painter.setClipping(False)
 
-        line_x = x + int(w * self._divider)
-        painter.setPen(Qt.white)
+        painter.setPen(QPen(QColor("#ffffff"), 3))
         painter.drawLine(line_x, y, line_x, y + h)
-        painter.fillRect(line_x - 2, y + h // 2 - 20, 4, 40, Qt.white)
 
-        if self._show_overlay and self._corners is not None and self._before is not None:
-            sx = w / self._before.width()
-            sy = h / self._before.height()
-            pts = [(x + cx * sx, y + cy * sy) for cx, cy in self._corners]
-            painter.setPen(Qt.green)
-            for i in range(4):
-                p1 = pts[i]
-                p2 = pts[(i + 1) % 4]
-                painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
-            painter.setBrush(Qt.cyan)
-            for px, py in pts:
-                painter.drawEllipse(int(px) - 6, int(py) - 6, 12, 12)
+        handle_y = y + h // 2
+        handle_color = QColor("#4c8bf5") if self._handle_hover or self._dragging else QColor("#2d6cdf")
+        painter.setBrush(QBrush(handle_color))
+        painter.setPen(QPen(Qt.white, 2))
+        painter.drawEllipse(QPoint(line_x, handle_y), self.HANDLE_RADIUS, self.HANDLE_RADIUS)
+
+        arrow_pen = QPen(Qt.white, 2)
+        painter.setPen(arrow_pen)
+        painter.drawLine(line_x - 10, handle_y, line_x - 4, handle_y)
+        painter.drawLine(line_x - 6, handle_y - 4, line_x - 4, handle_y)
+        painter.drawLine(line_x - 6, handle_y + 4, line_x - 4, handle_y)
+        painter.drawLine(line_x + 10, handle_y, line_x + 4, handle_y)
+        painter.drawLine(line_x + 6, handle_y - 4, line_x + 4, handle_y)
+        painter.drawLine(line_x + 6, handle_y + 4, line_x + 4, handle_y)
+
+        label_font = QFont()
+        label_font.setPointSize(9)
+        label_font.setBold(True)
+        painter.setFont(label_font)
+        painter.setPen(QColor("#c8cdd5"))
+        painter.drawText(x + 8, y + 20, "Rectified")
+        painter.drawText(x + w - 72, y + 20, "Enhanced")
 
         painter.end()
 
-    def wheelEvent(self, event: QWheelEvent) -> None:
-        factor = 1.1 if event.angleDelta().y() > 0 else 1 / 1.1
-        self._scale = max(0.2, min(5.0, self._scale * factor))
-        self.update()
-
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.LeftButton:
-            pix = self._after or self._before
-            if pix is None:
-                return
-            w = int(pix.width() * self._scale)
-            x0 = (self.width() - w) // 2 + self._offset.x()
-            line_x = x0 + int(w * self._divider)
-            if abs(event.position().x() - line_x) < 12:
-                self._dragging = True
-            else:
-                self._panning = True
-                self._pan_start = event.position().toPoint()
+        if event.button() == Qt.LeftButton and self._near_handle(event.position().x()):
+            self._dragging = True
+            self._anim.stop()
+            self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        hover = self._near_handle(event.position().x())
+        if hover != self._handle_hover:
+            self._handle_hover = hover
+            self.setCursor(Qt.SplitHCursor if hover or self._dragging else Qt.ArrowCursor)
+            if not self._dragging:
+                self.update()
+
         if self._dragging:
-            pix = self._after or self._before
-            if pix is None:
+            rect = self._image_rect()
+            if rect is None:
                 return
-            w = int(pix.width() * self._scale)
-            x0 = (self.width() - w) // 2 + self._offset.x()
-            rel = (event.position().x() - x0) / max(w, 1)
+            x, _, w, _ = rect
+            rel = (event.position().x() - x) / max(w, 1)
             self._divider = max(0.02, min(0.98, rel))
+            self._divider_display = self._divider
             self.dividerMoved.emit(self._divider)
-            self.update()
-        elif self._panning:
-            delta = event.position().toPoint() - self._pan_start
-            self._offset += delta
-            self._pan_start = event.position().toPoint()
             self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        self._dragging = False
-        self._panning = False
+        if self._dragging:
+            self._dragging = False
+            self._animate_to(self._divider)
+        self.setCursor(Qt.SplitHCursor if self._handle_hover else Qt.ArrowCursor)
+
+    def _animate_to(self, target: float) -> None:
+        self._anim.stop()
+        self._anim.setStartValue(self._divider_display)
+        self._anim.setEndValue(target)
+        self._anim.start()
 
     def reset_view(self) -> None:
-        self._scale = 1.0
-        self._offset = QPoint(0, 0)
         self._divider = 0.5
+        self._animate_to(0.5)
+
+    def leaveEvent(self, event) -> None:
+        self._handle_hover = False
+        self.setCursor(Qt.ArrowCursor)
         self.update()
+        super().leaveEvent(event)

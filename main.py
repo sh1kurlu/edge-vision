@@ -21,8 +21,8 @@ def main() -> int:
         raise SystemExit(1) from exc
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Document Scanner")
-    app.setOrganizationName("DocumentScanner")
+    app.setApplicationName("EdgeVision")
+    app.setOrganizationName("EdgeVision")
 
     window = MainWindow()
     window.show()

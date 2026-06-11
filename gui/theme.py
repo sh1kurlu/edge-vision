@@ -2,14 +2,34 @@ DARK_THEME = """
 QMainWindow, QWidget {
     background-color: #1a1d23;
     color: #e8eaed;
-    font-family: "Segoe UI", "SF Pro Text", "Helvetica Neue", sans-serif;
+    font-family: "Helvetica Neue", "Arial", sans-serif;
     font-size: 13px;
+}
+QWidget#appHeader {
+    background-color: transparent;
+}
+QLabel#appTitle {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    color: #ffffff;
+}
+QLabel#appTagline {
+    font-size: 13px;
+    color: #8b93a1;
+    padding-bottom: 4px;
+}
+QLabel#sectionTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: #c8cdd5;
+    padding-left: 2px;
 }
 QGroupBox {
     border: 1px solid #2f3540;
     border-radius: 8px;
-    margin-top: 12px;
-    padding: 12px 10px 10px 10px;
+    margin-top: 14px;
+    padding: 14px 12px 12px 12px;
     font-weight: 600;
 }
 QGroupBox::title {
@@ -23,8 +43,15 @@ QPushButton {
     color: white;
     border: none;
     border-radius: 6px;
-    padding: 8px 16px;
+    padding: 9px 16px;
     font-weight: 600;
+}
+QPushButton#secondaryButton {
+    background-color: #2a2f38;
+    border: 1px solid #3a404c;
+}
+QPushButton#secondaryButton:hover {
+    background-color: #343a45;
 }
 QPushButton:hover { background-color: #3d7cf0; }
 QPushButton:pressed { background-color: #2558b8; }
@@ -57,12 +84,13 @@ QTabWidget::pane {
     border: 1px solid #2f3540;
     border-radius: 8px;
     background: #1e2229;
+    top: -1px;
 }
 QTabBar::tab {
     background: #252930;
     color: #9aa0a6;
-    padding: 8px 16px;
-    margin-right: 2px;
+    padding: 9px 18px;
+    margin-right: 3px;
     border-top-left-radius: 6px;
     border-top-right-radius: 6px;
 }
@@ -70,7 +98,7 @@ QTabBar::tab:selected {
     background: #2d6cdf;
     color: white;
 }
-QCheckBox { spacing: 8px; }
+QCheckBox { spacing: 8px; color: #d0d4db; }
 QCheckBox::indicator {
     width: 18px;
     height: 18px;
@@ -83,7 +111,7 @@ QCheckBox::indicator:checked {
     border-color: #2d6cdf;
 }
 QScrollArea { border: none; background: transparent; }
-QSplitter::handle { background: #2f3540; width: 3px; }
-QLabel#metricsLabel { color: #9aa0a6; font-size: 12px; }
-QLabel#statusLabel { padding: 6px 10px; border-radius: 6px; background: #252930; }
+QSplitter::handle { background: #2f3540; width: 4px; }
+QLabel#metricsLabel { color: #9aa0a6; font-size: 12px; line-height: 1.4; }
+QLabel#statusLabel { padding: 8px 10px; border-radius: 6px; background: #252930; }
 """

@@ -46,6 +46,7 @@ class PipelineStages:
     edges: np.ndarray | None = None
     morphology: np.ndarray | None = None
     contour_overlay: np.ndarray | None = None
+    warped: np.ndarray | None = None
     final: np.ndarray | None = None
 
 
@@ -62,7 +63,6 @@ class ScanResult:
     perspective_success: bool = False
     elapsed_seconds: float = 0.0
     timings: dict[str, float] = field(default_factory=dict)
-    confidence: float = 0.0
     stages: PipelineStages | None = None
     input_resolution: tuple[int, int] | None = None
     output_resolution: tuple[int, int] | None = None
@@ -189,7 +189,6 @@ class DocumentScanner:
                     corners=corners,
                     success=True,
                     message="Using manual corners.",
-                    confidence=100.0,
                     strategy="manual",
                 )
             elif self.config.multi_strategy:
@@ -221,7 +220,6 @@ class DocumentScanner:
                     message=detection.message,
                     original=full_original,
                     detection=detection,
-                    confidence=detection.confidence,
                     stages=stages,
                     input_resolution=(input_w, input_h),
                     preview_mode=preview_mode,
@@ -241,6 +239,7 @@ class DocumentScanner:
             emit("Applying perspective correction...")
             try:
                 warped = correct_perspective(original, corners)
+                stages.warped = warped
                 perspective_success = True
             except (ValueError, Exception) as exc:
                 elapsed = time.perf_counter() - start
@@ -251,7 +250,6 @@ class DocumentScanner:
                     detection_overlay=overlay,
                     corners=corners,
                     detection=detection,
-                    confidence=detection.confidence,
                     perspective_success=False,
                     stages=stages,
                     input_resolution=(input_w, input_h),
@@ -288,7 +286,6 @@ class DocumentScanner:
                 enhanced=enhanced,
                 corners=full_corners,
                 detection=detection,
-                confidence=detection.confidence,
                 perspective_success=True,
                 stages=stages,
                 input_resolution=(input_w, input_h),
